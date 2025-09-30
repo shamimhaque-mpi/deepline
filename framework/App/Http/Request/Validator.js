@@ -97,6 +97,15 @@ export default class Validator {
                         errors[key] = messages[`${key+''}.exists`] ? messages[`${key}.exists`] : `The record does not exist`;
                     }
                 }
+
+
+                if(segments.includes('existsif')){
+                    // CONVERT ['exists:table,id,1'] TO ['exists', 'table', 'id', 1, 'conditions....'] 
+                    let [exists_checkable] = role.filter((field)=>(field.indexOf('existsif')>-1)).map((role)=>role.split(':').join(',').split(','));
+                    if(data[key] && exists_checkable && !(await this.existsIfCheck(exists_checkable, data[key]))){
+                        errors[key] = messages[`${key+''}.exists`] ? messages[`${key}.exists`] : `The record does not exist`;
+                    }
+                }
             }
 
         }
@@ -140,6 +149,35 @@ export default class Validator {
      */
     async existsCheck(params, value){
         const query = `SELECT * FROM ${params[1]} WHERE \`${params[2]}\` = '${params[3] ? params[3] : value}' limit 1`;
+        const [data] = await Mysql.instance().query(query);
+        return data[0]?true:false;
+    }
+
+    async existsIfCheck(params, value){
+
+        var conditions = {};
+        var cond = [];
+        for(const index in params){
+            if(index > 2){
+                if(conditions[params[index-1]]===null){
+                    conditions[params[index-1]] = params[index];
+                    cond[cond.length-1] = `${cond[cond.length-1]} = '${params[index]}'`;
+                }
+                else if(params[+index + 1]){
+                    conditions[params[index]] = null;
+                    cond.push(`\`${params[index]}\``);
+                }
+            }
+        }
+
+
+        const query = `
+            SELECT * FROM ${params[1]} 
+            WHERE 
+                \`${params[2]}\` = '${value}'
+                ${cond.length ? ' AND ' + cond.join(' AND ') : ''}
+            limit 1`;
+
         const [data] = await Mysql.instance().query(query);
         return data[0]?true:false;
     }
