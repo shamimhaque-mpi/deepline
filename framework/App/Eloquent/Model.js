@@ -1,13 +1,14 @@
+import EloquentCondition from "./EloquentCondition.js";
 import Database from "../Database/Mysql.js";
-import Relation from "../Eloquent/Relation.js";
 import collect from "../Helpers/Collect.js";
 
-export default class Model extends Relation {
+export default class Model extends EloquentCondition {
 
     #table      = '';
     #_where     = '';
     #_columns   = ['*'];
     #_orderBy   = '';
+    #_groupBy   = '';
     #_join      = '';
     #_skip      = '';
     #_limit     = '';
@@ -32,12 +33,12 @@ export default class Model extends Relation {
 
                 if(key.split('.').length>1){
                     let _key = key.split('.').map((row)=>`\`${row}\``).join('.');
-                    str.push(str.push(`${_key} = '${condition[key]}'`));
+                    str.push(`${_key} = '${condition[key]}'`);
                 }
                 else
                     str.push(`\`${key}\` = '${condition[key]}'`); 
             }
-            this.#_where = this.#_where + (this.#_where?' AND ':'') + str.join(' and ');
+            this.#_where = this.#_where + (this.#_where ? ' AND ':'') + str.join(' and ');
         }
 
         return this;
@@ -48,13 +49,39 @@ export default class Model extends Relation {
 
 
 
+    whereIn(field, data=[]){
+        this.#_where += (this.#_where ? ' AND ' : '') + `${field} IN (${data.join('')})`;
+        return this;
+    }
+    static whereIn(field, data=[]){
+        return (new this()).whereIn(field, data);
+    }
+
+
+
+    orWhere(field, data){
+        this.#_where += (this.#_where ? ' OR ' : '') + `${field.split('.').map(x=>`\`${x}\``).join('.')} = ${data}`;
+        return this;
+    }
+
+
+
 
     orderBy(entity, type){
-        this.#_orderBy = `ORDER BY ${entity} ${type}`;
+        this.#_orderBy = `ORDER BY ${entity.split('.').map(x=>`\`${x}\``).join('.')} ${type}`;
         return this;
     }
     static orderBy(entity, type){
         return (new this()).orderBy(entity, type);
+    }
+
+
+    groupBy(attribute){
+        this.#_groupBy = `GROUP BY ${attribute.split('.').map(x=>`\`${x}\``).join('.')}`;
+        return this;
+    }
+    static groupBy(attribute){
+        return (new this()).groupBy(attribute);
     }
 
 
@@ -83,11 +110,12 @@ export default class Model extends Relation {
 
 
 
-    select(columns) {
+    select(...columns) {
+        columns = Array.isArray(columns[0]) ? columns[0] : columns;
         this.#_columns = columns;
         return this;
     }
-    static select(columns){
+    static select(...columns){
         return (new this()).select(columns);
     }
 
@@ -301,20 +329,22 @@ export default class Model extends Relation {
             columns = this.#_columns.join(',');
             query = `
                 SELECT 
-                    ${columns} 
+                    ${ columns } 
                 
                 FROM 
-                    ${this.#table} 
+                    ${ this.#table } 
                 
-                ${this.#_join ? 'JOIN '+ this.#_join : ''} 
+                ${ this.#_join } 
 
-                ${this.#_where?' WHERE '+this.#_where:''} 
+                ${ this.#_where?' WHERE '+this.#_where:'' } 
+
+                ${ this.#_groupBy } 
                 
-                ${this.#_orderBy} 
+                ${ this.#_orderBy } 
 
-                ${this.#_limit ? ' LIMIT '+this.#_limit : ''}
+                ${ this.#_limit ? ' LIMIT '+this.#_limit : '' } 
 
-                ${this.#_skip ? ' OFFSET '+this.#_skip : ''} 
+                ${ this.#_skip ? ' OFFSET '+this.#_skip : '' } 
             `;
         }
 
@@ -373,14 +403,16 @@ export default class Model extends Relation {
         return new this();
     }
 
-    //join('t1', 't2', 't1.id', 't2.id')
+    //join('t1', 't2', 't1.id', '=', 't2.id')
     join(...fields){
 
+        fields = Array.isArray(fields[0]) ? fields[0] : fields; 
+
         if(fields.length==3){
-            this.#_join += ` ${this.#_join? 'JOIN' : ''} ${fields[0]} ON ${fields[0]}.${fields[1]} = ${this.#table}.${fields[1]}`;
+            this.#_join += ` JOIN ${fields[0]} ON ${fields[1]} = ${fields[2]}`;
         }
         else {
-            this.#_join += ` ${this.#_join? 'JOIN' : ''} ${fields[0]} ON ${fields[0]}.${fields[2]} = ${fields[1]}.${fields[3]}`;
+            this.#_join += ` JOIN ${fields[0]} ON ${fields[1]} ${fields[2]} ${fields[3]}`;
         }
         return this;
     }
@@ -390,8 +422,31 @@ export default class Model extends Relation {
 
 
 
+    //join('t1', 't2', 't1.id', '=', 't2.id')
+    leftJoin(...fields){
+
+        fields = Array.isArray(fields[0]) ? fields[0] : fields; 
+
+        if(fields.length==3){
+            this.#_join += ` LEFT JOIN ${fields[0]} ON ${fields[1]} = ${fields[2]}`;
+        }
+        else {
+            this.#_join += ` LEFT JOIN ${fields[0]} ON ${fields[1]} ${fields[2]} ${fields[3]}`;
+        }
+        return this;
+    }
+    static leftJoin(...fields){
+        return (new this()).leftJoin(fields);
+    }
+
+
+
     static class (){
         return this.namespace + '/' + this.name;
+    }
+
+    getQuery(){
+        return this.makeQuery();
     }
 
 }

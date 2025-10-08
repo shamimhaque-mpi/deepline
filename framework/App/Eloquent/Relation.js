@@ -6,21 +6,21 @@ import path from "path";
 export default class Relation extends Facade {
 
     async hasMany(model, forein_key, local_key){
-        return await model.instance().where(forein_key, this[local_key]).get();
+        return await model.where(forein_key, this[local_key]).get();
     }
 
     async hasOne(model, forein_key, local_key){
-        return await model.instance().where(forein_key, this[local_key]).first();
+        return await model.where(forein_key, this[local_key]).first();
     }
 
 
     
-    async manyToMany(model){
+    async manyToMany(model, pivot=null){
 
         let parent_table = this.getTableName();
         let child_table  = model.instance().getTableName();
 
-        let pivot_table  = this.toSingularize(parent_table)+'_'+child_table;
+        let pivot_table  = pivot ? pivot : this.toSingularize(parent_table)+'_'+child_table;
 
         let pp_id_name = this.toSingularize(parent_table)+'_id';
         let pc_id_name = this.toSingularize(child_table)+'_id';
@@ -68,13 +68,12 @@ export default class Relation extends Facade {
     async morphTo(_type=null, _id=null, _entity=null){
         try{
 
-            var {type, id} = this.makeMorphFields(this.constructor.name);
-
+            var {type, id} = this.makeMorphFields(this.constructor.name)
             if(_type) type = _type;
             if(_id) id = _id;
 
             const model = (await import(path.resolve(this[type]+'.js'))).default;
-            return await model.where({[_entity?_entity:'id']:this[id]}).first();
+            return model.where({[_entity?_entity:'id']:this[id]}).first();
         }
         catch(e){
             console.log(e);

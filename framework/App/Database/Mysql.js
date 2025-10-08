@@ -27,7 +27,6 @@ export default class Mysql {
 
     async query(query, values=[]){
         try{
-            console.log(query);
             return await this.connect().query(query, values);
         }
         catch(e){
